@@ -16,6 +16,11 @@ object PluginSettingsLoader {
         require(qaRateLimitSeconds >= 0) {
             "qa.rateLimitSeconds must be >= 0."
         }
+        val qaProgressEnabled = configuration.getBoolean("qa.progress.enabled", true)
+        val qaProgressIntervalSeconds = configuration.getLong("qa.progress.intervalSeconds", 10L)
+        require(qaProgressIntervalSeconds > 0) {
+            "qa.progress.intervalSeconds must be > 0."
+        }
 
         val host = readTextOrDefault(
             configuration = configuration,
@@ -58,7 +63,13 @@ object PluginSettingsLoader {
             serverId = serverId,
             debugLogging = debugLogging,
             language = language,
-            qa = QaSettings(rateLimitSeconds = qaRateLimitSeconds),
+            qa = QaSettings(
+                rateLimitSeconds = qaRateLimitSeconds,
+                progress = QaProgressSettings(
+                    enabled = qaProgressEnabled,
+                    intervalSeconds = qaProgressIntervalSeconds,
+                ),
+            ),
             backend = BackendSettings(
                 host = host,
                 port = port,

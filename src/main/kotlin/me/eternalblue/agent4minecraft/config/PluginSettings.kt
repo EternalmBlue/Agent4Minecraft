@@ -12,6 +12,12 @@ data class PluginSettings(
 
 data class QaSettings(
     val rateLimitSeconds: Long,
+    val progress: QaProgressSettings,
+)
+
+data class QaProgressSettings(
+    val enabled: Boolean,
+    val intervalSeconds: Long,
 )
 
 data class BackendSettings(

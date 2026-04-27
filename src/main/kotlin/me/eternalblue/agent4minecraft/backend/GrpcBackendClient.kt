@@ -4,10 +4,12 @@ import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
+import io.grpc.Status
 import io.grpc.okhttp.OkHttpChannelBuilder
 import io.grpc.stub.StreamObserver
 import me.eternalblue.agent4minecraft.config.BackendSettings
 import me.eternalblue.agent4minecraft.domain.AskCommandRequest
+import me.eternalblue.agent4minecraft.domain.AskProgress
 import me.eternalblue.agent4minecraft.domain.AskResult
 import me.eternalblue.agent4minecraft.domain.ManifestFile
 import me.eternalblue.agent4minecraft.domain.ProbeCommand
@@ -22,7 +24,10 @@ import me.eternalblue.agent4minecraft.domain.UploadFile
 import me.eternalblue.agent4minecraft.domain.UploadReceipt
 import me.eternalblue.agent4minecraft.i18n.PluginMessages
 import me.eternalblue.agent4minecraft.proto.AgentBridgeServiceGrpc
+import me.eternalblue.agent4minecraft.proto.AskEvent
+import me.eternalblue.agent4minecraft.proto.AskProgress as ProtoAskProgress
 import me.eternalblue.agent4minecraft.proto.AskRequest
+import me.eternalblue.agent4minecraft.proto.AskResponse
 import me.eternalblue.agent4minecraft.proto.FileChunkUploadRequest
 import me.eternalblue.agent4minecraft.proto.FileManifestEntry
 import me.eternalblue.agent4minecraft.proto.ProbeRequest
@@ -77,6 +82,7 @@ class GrpcBackendClient private constructor(
                 backendName = response.backendName,
                 backendVersion = response.backendVersion.takeUnless(String::isBlank),
                 protocolVersion = response.protocolVersion,
+                capabilities = response.capabilitiesList.toSet(),
             )
         } catch (throwable: Throwable) {
             throw GrpcErrorMapper.map(throwable, messages.backendActionProbe(), messages)
@@ -84,27 +90,41 @@ class GrpcBackendClient private constructor(
     }
 
     override fun ask(request: AskCommandRequest): AskResult {
+        return ask(request) {}
+    }
+
+    override fun ask(
+        request: AskCommandRequest,
+        onProgress: (AskProgress) -> Unit,
+    ): AskResult {
+        return try {
+            val events = blockingStub
+                .withDeadlineAfter(settings.askDeadlineMillis, TimeUnit.MILLISECONDS)
+                .askStream(request.toProto())
+            var result: AskResult? = null
+            events.forEachRemaining { event ->
+                when (event.eventCase) {
+                    AskEvent.EventCase.PROGRESS -> onProgress(event.progress.toDomain())
+                    AskEvent.EventCase.RESPONSE -> result = event.response.toDomain(request.requestId)
+                    AskEvent.EventCase.EVENT_NOT_SET,
+                    -> Unit
+                }
+            }
+            result ?: throw BackendTransportException(messages.backendNoAskResult())
+        } catch (throwable: Throwable) {
+            if (Status.fromThrowable(throwable).code == Status.Code.UNIMPLEMENTED) {
+                return askUnary(request)
+            }
+            throw GrpcErrorMapper.map(throwable, messages.backendActionAsk(), messages)
+        }
+    }
+
+    private fun askUnary(request: AskCommandRequest): AskResult {
         return try {
             val response = blockingStub
                 .withDeadlineAfter(settings.askDeadlineMillis, TimeUnit.MILLISECONDS)
-                .ask(
-                    AskRequest.newBuilder()
-                        .setServerId(request.serverId)
-                        .setServerInstanceId(request.serverInstanceId)
-                        .setPlayerId(request.playerId)
-                        .setPlayerName(request.playerName)
-                        .setQuestion(request.question)
-                        .setRequestId(request.requestId)
-                        .setTimestamp(request.timestampMillis)
-                        .addAllInstalledPlugins(request.installedPlugins.map { it.toProto() })
-                        .build(),
-                )
-            AskResult(
-                requestId = response.requestId.ifBlank { request.requestId },
-                answer = response.answer,
-                citationsSummary = response.citationsSummary.takeUnless(String::isBlank),
-                backendTraceId = response.backendTraceId.takeUnless(String::isBlank),
-            )
+                .ask(request.toProto())
+            response.toDomain(request.requestId)
         } catch (throwable: Throwable) {
             throw GrpcErrorMapper.map(throwable, messages.backendActionAsk(), messages)
         }
@@ -360,6 +380,38 @@ class GrpcBackendClient private constructor(
             .setVersion(version)
             .setEnabled(enabled)
             .build()
+    }
+
+    private fun AskCommandRequest.toProto(): AskRequest {
+        return AskRequest.newBuilder()
+            .setServerId(serverId)
+            .setServerInstanceId(serverInstanceId)
+            .setPlayerId(playerId)
+            .setPlayerName(playerName)
+            .setQuestion(question)
+            .setRequestId(requestId)
+            .setTimestamp(timestampMillis)
+            .addAllInstalledPlugins(installedPlugins.map { it.toProto() })
+            .build()
+    }
+
+    private fun AskResponse.toDomain(fallbackRequestId: String): AskResult {
+        return AskResult(
+            requestId = requestId.ifBlank { fallbackRequestId },
+            answer = answer,
+            citationsSummary = citationsSummary.takeUnless(String::isBlank),
+            backendTraceId = backendTraceId.takeUnless(String::isBlank),
+        )
+    }
+
+    private fun ProtoAskProgress.toDomain(): AskProgress {
+        return AskProgress(
+            requestId = requestId,
+            stage = stage,
+            message = message,
+            elapsedMillis = elapsedMs,
+            sequence = sequence,
+        )
     }
 
     private fun SyncState.toDomain(): RemoteSyncState {

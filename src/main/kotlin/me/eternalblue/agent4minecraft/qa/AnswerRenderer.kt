@@ -12,6 +12,10 @@ object AnswerRenderer {
         sender.sendMessage(Component.text(message, NamedTextColor.YELLOW))
     }
 
+    fun sendProgress(sender: CommandSender, message: String) {
+        sender.sendMessage(Component.text(message, NamedTextColor.YELLOW))
+    }
+
     fun sendAnswer(
         sender: CommandSender,
         result: AskResult,

@@ -127,6 +127,7 @@ class Agent4MinecraftPlugin : JavaPlugin() {
                 executor = executor,
                 questionService = questionService,
                 limiter = QuestionRequestLimiter(settings.qa.rateLimitSeconds, messages),
+                progressSettings = settings.qa.progress,
                 messages = messages,
             ),
         )
