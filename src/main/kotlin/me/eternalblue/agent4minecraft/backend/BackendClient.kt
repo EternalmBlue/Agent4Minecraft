@@ -1,6 +1,7 @@
 package me.eternalblue.agent4minecraft.backend
 
 import me.eternalblue.agent4minecraft.domain.AskCommandRequest
+import me.eternalblue.agent4minecraft.domain.AskProgress
 import me.eternalblue.agent4minecraft.domain.AskResult
 import me.eternalblue.agent4minecraft.domain.ManifestFile
 import me.eternalblue.agent4minecraft.domain.ProbeCommand
@@ -15,6 +16,11 @@ interface BackendClient : AutoCloseable {
     fun probe(request: ProbeCommand): ProbeResult
 
     fun ask(request: AskCommandRequest): AskResult
+
+    fun ask(
+        request: AskCommandRequest,
+        onProgress: (AskProgress) -> Unit,
+    ): AskResult = ask(request)
 
     fun prepareSync(
         serverId: String,

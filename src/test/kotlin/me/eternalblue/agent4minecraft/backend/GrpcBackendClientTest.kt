@@ -14,6 +14,8 @@ import me.eternalblue.agent4minecraft.domain.AskCommandRequest
 import me.eternalblue.agent4minecraft.domain.ProbeCommand
 import me.eternalblue.agent4minecraft.domain.ServerPluginInfo
 import me.eternalblue.agent4minecraft.proto.AgentBridgeServiceGrpc
+import me.eternalblue.agent4minecraft.proto.AskEvent
+import me.eternalblue.agent4minecraft.proto.AskProgress
 import me.eternalblue.agent4minecraft.proto.AskRequest
 import me.eternalblue.agent4minecraft.proto.AskResponse
 import me.eternalblue.agent4minecraft.proto.ProbeRequest
@@ -189,6 +191,92 @@ class GrpcBackendClientTest {
             assertEquals("EssentialsX", capturedRequest.get().getInstalledPlugins(0).name)
             assertEquals("2.20.1", capturedRequest.get().getInstalledPlugins(0).version)
             assertEquals(true, capturedRequest.get().getInstalledPlugins(0).enabled)
+        } finally {
+            client.close()
+            server.shutdownNow()
+            server.awaitTermination(5, TimeUnit.SECONDS)
+        }
+    }
+
+    @Test
+    fun `ask stream reports progress before final answer`() {
+        val capturedAuthorization = AtomicReference<String?>()
+        val capturedRequest = AtomicReference<AskRequest>()
+        val service = object : AgentBridgeServiceGrpc.AgentBridgeServiceImplBase() {
+            override fun askStream(
+                request: AskRequest,
+                responseObserver: StreamObserver<AskEvent>,
+            ) {
+                capturedRequest.set(request)
+                responseObserver.onNext(
+                    AskEvent.newBuilder()
+                        .setProgress(
+                            AskProgress.newBuilder()
+                                .setRequestId(request.requestId)
+                                .setStage("retrieval")
+                                .setMessage("Searching docs")
+                                .setElapsedMs(250L)
+                                .setSequence(1),
+                        )
+                        .build(),
+                )
+                responseObserver.onNext(
+                    AskEvent.newBuilder()
+                        .setResponse(
+                            AskResponse.newBuilder()
+                                .setRequestId(request.requestId)
+                                .setAnswer("stream pong")
+                                .setBackendTraceId("trace-1"),
+                        )
+                        .build(),
+                )
+                responseObserver.onCompleted()
+            }
+        }
+
+        val interceptor = object : ServerInterceptor {
+            override fun <ReqT : Any?, RespT : Any?> interceptCall(
+                call: ServerCall<ReqT, RespT>,
+                headers: Metadata,
+                next: ServerCallHandler<ReqT, RespT>,
+            ): ServerCall.Listener<ReqT> {
+                capturedAuthorization.set(headers.get(AuthTokenClientInterceptor.AUTHORIZATION_HEADER))
+                return next.startCall(call, headers)
+            }
+        }
+
+        val serverName = InProcessServerBuilder.generateName()
+        val server = InProcessServerBuilder
+            .forName(serverName)
+            .directExecutor()
+            .addService(ServerInterceptors.intercept(service, interceptor))
+            .build()
+            .start()
+
+        val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
+        val client = GrpcBackendClient.forChannel(testSettings(), channel)
+
+        try {
+            val progressEvents = mutableListOf<me.eternalblue.agent4minecraft.domain.AskProgress>()
+            val result = client.ask(
+                AskCommandRequest(
+                    serverId = "lobby-1",
+                    serverInstanceId = "instance-1",
+                    playerId = "player-1",
+                    playerName = "tester",
+                    question = "ping",
+                    requestId = "req-1",
+                    timestampMillis = 1L,
+                ),
+            ) { progressEvents += it }
+
+            assertEquals("stream pong", result.answer)
+            assertEquals("trace-1", result.backendTraceId)
+            assertEquals("Bearer token-123", capturedAuthorization.get())
+            assertEquals("instance-1", capturedRequest.get().serverInstanceId)
+            assertEquals(1, progressEvents.size)
+            assertEquals("retrieval", progressEvents.single().stage)
+            assertEquals(250L, progressEvents.single().elapsedMillis)
         } finally {
             client.close()
             server.shutdownNow()

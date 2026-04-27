@@ -2,6 +2,7 @@ package me.eternalblue.agent4minecraft.qa
 
 import me.eternalblue.agent4minecraft.backend.BackendClient
 import me.eternalblue.agent4minecraft.domain.AskCommandRequest
+import me.eternalblue.agent4minecraft.domain.AskProgress
 import me.eternalblue.agent4minecraft.domain.AskResult
 import me.eternalblue.agent4minecraft.domain.ServerPluginInfo
 import me.eternalblue.agent4minecraft.i18n.PluginMessages
@@ -23,7 +24,10 @@ class QuestionService(
     private val debugLogging: Boolean,
     private val logger: Logger,
 ) {
-    fun ask(context: QuestionContext): AskResult {
+    fun ask(
+        context: QuestionContext,
+        onProgress: (AskProgress) -> Unit = {},
+    ): AskResult {
         val normalizedQuestion = context.question.trim()
         require(normalizedQuestion.isNotEmpty()) {
             messages.questionBlank()
@@ -40,7 +44,7 @@ class QuestionService(
             installedPlugins = context.installedPlugins,
         )
 
-        val result = backendClient.ask(request)
+        val result = backendClient.ask(request, onProgress)
         if (debugLogging) {
             logger.info(
                 buildString {

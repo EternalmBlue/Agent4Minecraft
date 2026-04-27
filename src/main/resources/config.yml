@@ -39,3 +39,6 @@ plugin:
 #
 # qa:
 #   rateLimitSeconds: 3
+#   progress:
+#     enabled: true
+#     intervalSeconds: 10

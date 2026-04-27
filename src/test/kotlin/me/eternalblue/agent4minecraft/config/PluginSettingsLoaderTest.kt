@@ -27,6 +27,8 @@ class PluginSettingsLoaderTest {
         assertEquals(5L, settings.qa.rateLimitSeconds)
         assertEquals("127.0.0.1", settings.backend.host)
         assertEquals("secret", settings.backend.authToken)
+        assertEquals(true, settings.qa.progress.enabled)
+        assertEquals(10L, settings.qa.progress.intervalSeconds)
         assertEquals(12_000L, settings.backend.deadlineMillis)
         assertEquals(120_000L, settings.backend.askDeadlineMillis)
         assertEquals(12_000L, settings.backend.syncDeadlineMillis)
@@ -44,6 +46,32 @@ class PluginSettingsLoaderTest {
         val settings = PluginSettingsLoader.load(configuration, Path.of("F:/servers/lobby-1"))
 
         assertEquals(45_000L, settings.backend.askDeadlineMillis)
+    }
+
+    @Test
+    fun `loads explicit ask progress settings`() {
+        val configuration = YamlConfiguration().apply {
+            set("backend.authToken", "secret")
+            set("qa.progress.enabled", false)
+            set("qa.progress.intervalSeconds", 15L)
+        }
+
+        val settings = PluginSettingsLoader.load(configuration, Path.of("F:/servers/lobby-1"))
+
+        assertEquals(false, settings.qa.progress.enabled)
+        assertEquals(15L, settings.qa.progress.intervalSeconds)
+    }
+
+    @Test
+    fun `rejects non positive ask progress interval`() {
+        val configuration = YamlConfiguration().apply {
+            set("backend.authToken", "secret")
+            set("qa.progress.intervalSeconds", 0L)
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            PluginSettingsLoader.load(configuration, Path.of("F:/servers/lobby-1"))
+        }
     }
 
     @Test

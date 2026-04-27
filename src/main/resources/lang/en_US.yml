@@ -8,6 +8,21 @@ common:
 ask:
   usage: "Usage: /{label} <question>"
   queued: "Requesting the remote backend, please wait..."
+  progress:
+    waiting: "Building the answer ({elapsed_seconds}s), waiting for backend progress..."
+    running: "Building the answer ({elapsed_seconds}s), current step: {stage}"
+    stage:
+      started: "question accepted"
+      memory_recall: "reading long-term memory"
+      memory_ready: "long-term memory ready"
+      agent_running: "planning retrieval and answer generation"
+      retrieval: "searching plugin documentation"
+      retrieval_ready: "plugin documentation search complete"
+      server_config_retrieval: "searching server configuration memory"
+      server_config_ready: "server configuration memory ready"
+      answer_ready: "answer generation complete"
+      memory_write: "recording this turn"
+      completed: "completed"
   failed_fallback: "Ask request failed. Please retry later."
   question_blank: "Question must not be blank."
   already_running: "You already have an ask request in progress. Please wait for the result."
@@ -89,6 +104,7 @@ backend:
     file_read_failed: "Failed to read local file {path}."
     upload_interrupted: "Upload for {path} was interrupted."
     no_upload_result: "Backend did not return a file upload result."
+    no_ask_result: "Backend did not return an ask result."
 
 startup:
   probe_ack_false: "Backend probe returned ack=false."

@@ -1,6 +1,7 @@
 package me.eternalblue.agent4minecraft.i18n
 
 import me.eternalblue.agent4minecraft.config.BackendSettings
+import me.eternalblue.agent4minecraft.domain.AskProgress
 import me.eternalblue.agent4minecraft.domain.ProbeResult
 import me.eternalblue.agent4minecraft.domain.RemoteSyncState
 import me.eternalblue.agent4minecraft.transfer.LocalSyncPhase
@@ -14,6 +15,22 @@ class PluginMessages(
     fun adminUsage(label: String): String = msg("admin.usage", "label" to label)
     fun unknownSubcommand(label: String): String = msg("admin.unknown_subcommand", "label" to label)
     fun askQueued(): String = msg("ask.queued")
+    fun askProgress(progress: AskProgress, elapsedSeconds: Long): String {
+        val stage = msgOrDefault(
+            key = "ask.progress.stage.${progress.stage}",
+            defaultValue = progress.message.ifBlank { progress.stage },
+        )
+        return msg(
+            "ask.progress.running",
+            "elapsed_seconds" to elapsedSeconds,
+            "stage" to stage,
+        )
+    }
+
+    fun askProgressWaiting(elapsedSeconds: Long): String {
+        return msg("ask.progress.waiting", "elapsed_seconds" to elapsedSeconds)
+    }
+
     fun askFailedFallback(): String = msg("ask.failed_fallback")
     fun answerHeader(): String = msg("answer.header")
     fun emptyAnswer(): String = msg("answer.empty")
@@ -175,6 +192,7 @@ class PluginMessages(
     fun backendFileReadFailed(relativePath: String): String = msg("backend.error.file_read_failed", "path" to relativePath)
     fun backendUploadInterrupted(relativePath: String): String = msg("backend.error.upload_interrupted", "path" to relativePath)
     fun backendNoUploadResult(): String = msg("backend.error.no_upload_result")
+    fun backendNoAskResult(): String = msg("backend.error.no_ask_result")
 
     fun startupProbeAckFalse(): String = msg("startup.probe_ack_false")
     fun startupProtocolMismatch(): String = msg("startup.protocol_mismatch")
@@ -239,6 +257,13 @@ class PluginMessages(
     ): String {
         val template = templates[key] ?: fallbackTemplates[key] ?: key
         return render(template, variables.toMap())
+    }
+
+    private fun msgOrDefault(
+        key: String,
+        defaultValue: String,
+    ): String {
+        return templates[key] ?: fallbackTemplates[key] ?: defaultValue
     }
 
     private fun render(

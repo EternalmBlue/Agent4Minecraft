@@ -33,6 +33,7 @@ data class ProbeResult(
     val backendName: String,
     val backendVersion: String?,
     val protocolVersion: Int,
+    val capabilities: Set<String> = emptySet(),
 )
 
 data class AskResult(
@@ -40,6 +41,14 @@ data class AskResult(
     val answer: String,
     val citationsSummary: String? = null,
     val backendTraceId: String? = null,
+)
+
+data class AskProgress(
+    val requestId: String,
+    val stage: String,
+    val message: String,
+    val elapsedMillis: Long,
+    val sequence: Int,
 )
 
 data class ManifestFile(
