@@ -1,0 +1,22 @@
+name: Agent4Minecraft
+version: ${version}
+main: me.eternalblue.agent4minecraft.Agent4MinecraftPlugin
+api-version: "1.20"
+authors:
+  - eternalblue
+commands:
+  askmc:
+    description: Ask the remote Agent4Minecraft backend a question.
+    usage: "/askmc <question>"
+    permission: agent4minecraft.ask
+  a4m:
+    description: Agent4Minecraft admin commands.
+    usage: "/a4m <sync|status>"
+    permission: agent4minecraft.admin
+permissions:
+  agent4minecraft.ask:
+    description: Allows asking the remote Agent4Minecraft backend.
+    default: true
+  agent4minecraft.admin:
+    description: Allows managing Agent4Minecraft sync and status commands.
+    default: op

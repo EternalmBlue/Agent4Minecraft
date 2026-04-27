@@ -1,0 +1,41 @@
+# 最小配置：
+# 1. 通常只需要先修改 backend.authToken。
+# 2. 它必须和 AgentForMc/.env 里的 RAG_GRPC_AUTH_TOKEN 保持一致。
+# 3. 如果后端和 Minecraft 在同一台机器上，通常不需要修改 host / port。
+backend:
+  authToken: "EternalBlue"
+
+# 插件语言：
+# - zh_CN: 简体中文
+# - en_US: English
+# 首次启动会生成 plugins/Agent4Minecraft/lang/zh_CN.yml 和 en_US.yml。
+# 你可以直接修改 lang/*.yml 来调整显示文案。
+plugin:
+  language: "zh_CN"
+  debug: false
+
+# 可选配置：只有确实需要时再取消注释。
+#
+# 只有你不想让插件自动使用“服务器根目录名”作为 server.id 时，再配置它。
+# server:
+#   id: "production-lobby"
+#
+# 只有后端不在同一台机器上时，再改 host / port。
+# backend:
+#   host: "10.0.0.12"
+#   port: 50051
+#
+# 只有后端确实启用了 TLS 时，再打开 useTls。
+# backend:
+#   useTls: true
+#
+# 高级调优：默认不用改。
+# backend:
+#   deadlineMillis: 15000
+#   probeTimeoutMillis: 3000
+#   askDeadlineMillis: 120000
+#   syncDeadlineMillis: 15000
+#   maxChunkBytes: 262144
+#
+# qa:
+#   rateLimitSeconds: 3
