@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "me.eternalblue"
-version = "1.0-SNAPSHOT"
+version = (findProperty("version") as String?) ?: "1.0-SNAPSHOT"
 
 val grpcVersion = "1.71.0"
 val protobufVersion = "3.25.5"
