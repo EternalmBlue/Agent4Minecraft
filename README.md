@@ -6,12 +6,13 @@ Agent4Minecraft 是 AgentForMc 项目的 Minecraft 插件端。它运行在 Pape
 
 ## 关联仓库
 
-| 仓库 | 职责 | 地址 |
-| --- | --- | --- |
-| Agent4Minecraft | Minecraft 插件端，也就是游戏内入口和文件同步客户端 | <https://github.com/EternalmBlue/Agent4Minecraft> |
+| 仓库 | 职责 | 地址                                           |
+| --- | --- |----------------------------------------------|
+| Agent4Minecraft | Minecraft 插件端，也就是游戏内入口和文件同步客户端 |                                              |
 | AgentForMc | AI 后端，负责问答规划、RAG 检索、语义记忆、配置摄取和 gRPC 服务 | <https://github.com/EternalmBlue/AgentForMc> |
+| AgentForMc-Reranker | 可选 reranker 中间件，单独承载 BCE 模型和重排 gRPC 服务 | <https://github.com/EternalmBlue/AgentForMc-Reranker> |
 
-两个仓库通过同一份 gRPC 协议对接：
+插件端和后端通过同一份 gRPC 协议对接：
 
 - 插件端协议文件：`src/main/proto/agent_bridge.proto`
 - 后端协议文件：`agent_for_mc/interfaces/grpc/agent_bridge.proto`
@@ -84,14 +85,14 @@ flowchart LR
 
 ## 快速开始
 
-### 1. 克隆两个仓库
+### 1. 克隆关联仓库
 
 ```powershell
 git clone https://github.com/EternalmBlue/AgentForMc.git
-git clone https://github.com/EternalmBlue/Agent4Minecraft.git
+git clone https://github.com/EternalmBlue/AgentForMc-Reranker.git
 ```
 
-建议两个仓库放在同一台机器上先完成本地联调。默认情况下，插件会连接 `127.0.0.1:50051`。
+建议插件端和后端放在同一台机器上先完成本地联调。AgentForMc-Reranker 只有在需要启用 reranker 时才需要运行。默认情况下，插件会连接 `127.0.0.1:50051`。
 
 ### 2. 配置并启动后端
 
