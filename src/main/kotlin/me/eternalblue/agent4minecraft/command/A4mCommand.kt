@@ -1,6 +1,5 @@
 package me.eternalblue.agent4minecraft.command
 
-import me.eternalblue.agent4minecraft.Agent4MinecraftPlugin
 import me.eternalblue.agent4minecraft.i18n.PluginMessages
 import me.eternalblue.agent4minecraft.qa.AnswerRenderer
 import me.eternalblue.agent4minecraft.transfer.ActiveSync
@@ -14,13 +13,11 @@ import org.bukkit.command.TabCompleter
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutorService
 
 class A4mCommand(
-    private val plugin: Agent4MinecraftPlugin,
-    private val executor: ExecutorService,
+    private val asyncRunner: AsyncCommandRunner,
     private val syncService: SyncService,
+    private val skillCommandHandler: SkillCommandHandler,
     private val messages: PluginMessages,
 ) : CommandExecutor, TabCompleter {
     override fun onCommand(
@@ -50,6 +47,11 @@ class A4mCommand(
                 true
             }
 
+            "skill" -> {
+                skillCommandHandler.handle(sender, label, args.drop(1))
+                true
+            }
+
             else -> {
                 AnswerRenderer.sendFailure(sender, messages.unknownSubcommand(label))
                 true
@@ -64,79 +66,52 @@ class A4mCommand(
         args: Array<out String>,
     ): MutableList<String> {
         if (args.size == 1) {
-            return listOf("sync", "status")
+            return listOf("sync", "status", "skill")
                 .filter { option -> option.startsWith(args[0], ignoreCase = true) }
                 .toMutableList()
+        }
+        if (args.size == 2 && args[0].equals("skill", ignoreCase = true)) {
+            return skillCommandHandler.tabComplete(args[1])
         }
         return mutableListOf()
     }
 
     private fun triggerSync(sender: CommandSender) {
         AnswerRenderer.sendQueued(sender, messages.syncStarting())
-        CompletableFuture
-            .supplyAsync({ syncService.startManualSync() }, executor)
-            .whenComplete { summary, throwable ->
-                if (!plugin.isEnabled) {
-                    return@whenComplete
-                }
-
-                plugin.server.scheduler.runTask(
-                    plugin,
-                    Runnable {
-                        val failure = AsyncFailureUnwrapper.unwrap(throwable)
-                        if (failure != null) {
-                            AnswerRenderer.sendFailure(
-                                sender,
-                                failure.message ?: messages.syncFailedFallback(),
-                            )
-                        } else if (summary != null) {
-                            AnswerRenderer.sendInfo(
-                                sender,
-                                listOf(
-                                    messages.syncFinished(summary.syncId),
-                                    messages.syncSummary(
-                                        scanned = summary.scannedFileCount,
-                                        requiredUploads = summary.requiredUploadCount,
-                                        uploaded = summary.uploadedFileCount,
-                                    ),
-                                    messages.syncCommitSummary(
-                                        accepted = summary.acceptedCount,
-                                        indexed = summary.indexedCount,
-                                        refreshStarted = summary.refreshStarted,
-                                    ),
-                                    messages.backendMessage(summary.message),
-                                ),
-                            )
-                        }
-                    },
-                )
-            }
+        asyncRunner.run(
+            sender = sender,
+            fallbackMessage = messages.syncFailedFallback(),
+            task = { syncService.startManualSync() },
+        ) { summary ->
+            AnswerRenderer.sendInfo(
+                sender,
+                listOf(
+                    messages.syncFinished(summary.syncId),
+                    messages.syncSummary(
+                        scanned = summary.scannedFileCount,
+                        requiredUploads = summary.requiredUploadCount,
+                        uploaded = summary.uploadedFileCount,
+                    ),
+                    messages.syncCommitSummary(
+                        accepted = summary.acceptedCount,
+                        indexed = summary.indexedCount,
+                        refreshStarted = summary.refreshStarted,
+                    ),
+                    messages.backendMessage(summary.message),
+                ),
+            )
+        }
     }
 
     private fun showStatus(sender: CommandSender) {
         AnswerRenderer.sendQueued(sender, messages.statusQueryQueued())
-        CompletableFuture
-            .supplyAsync({ syncService.describeStatus() }, executor)
-            .whenComplete { report, throwable ->
-                if (!plugin.isEnabled) {
-                    return@whenComplete
-                }
-
-                plugin.server.scheduler.runTask(
-                    plugin,
-                    Runnable {
-                        val failure = AsyncFailureUnwrapper.unwrap(throwable)
-                        if (failure != null) {
-                            AnswerRenderer.sendFailure(
-                                sender,
-                                failure.message ?: messages.statusQueryFailedFallback(),
-                            )
-                        } else if (report != null) {
-                            AnswerRenderer.sendInfo(sender, renderStatus(report))
-                        }
-                    },
-                )
-            }
+        asyncRunner.run(
+            sender = sender,
+            fallbackMessage = messages.statusQueryFailedFallback(),
+            task = { syncService.describeStatus() },
+        ) { report ->
+            AnswerRenderer.sendInfo(sender, renderStatus(report))
+        }
     }
 
     private fun renderStatus(report: SyncStatusReport): List<String> {
@@ -239,5 +214,4 @@ class A4mCommand(
         }
         return String.format("%.1f %s", value, units[index])
     }
-
 }

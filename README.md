@@ -30,6 +30,7 @@ Agent4Minecraft 是 AgentForMc 项目的 Minecraft 插件端。它运行在 Pape
 - 分块传输：文件上传使用 client-streaming gRPC，避免大文件一次性进入内存。
 - 敏感值脱敏：插件上传前会对配置内容做前端侧脱敏，本地原文件不被修改。
 - 同步状态：管理员使用 `/a4m status` 查看本地同步进度和后端刷新状态。
+- Skill 管理：服主使用 `/a4m skill ...` 查看三层 Skill，并通过私有聊天会话创建、预览、确认安装或删除本服 Skill。
 - 多语言消息：内置简体中文和英文消息文件。
 - 异步执行：网络、扫描、校验、上传都不阻塞 Minecraft 主线程。
 
@@ -40,9 +41,11 @@ flowchart LR
     Player["Minecraft 玩家 / 管理员"] --> Commands["Agent4Minecraft 命令层"]
     Commands --> Ask["/askmc 问答流程"]
     Commands --> Sync["/a4m sync / status 同步流程"]
+    Commands --> Skills["/a4m skill 管理流程"]
     Ask --> Client["BackendClient gRPC 客户端"]
     Sync --> Scanner["允许列表扫描 + manifest + 脱敏"]
     Scanner --> Client
+    Skills --> Client
     Client --> Backend["AgentForMc gRPC 服务"]
     Backend --> RAG["规划执行 + RAG + 语义记忆"]
     Backend --> Stores["LanceDB / SQLite / mc_servers"]
@@ -58,8 +61,9 @@ flowchart LR
 | --- | --- |
 | `bootstrap` | 插件启动、线程池、启动探测、服务端实例 ID |
 | `config` | `config.yml` 读取、默认值和校验 |
-| `command` | `/askmc`、`/a4m sync`、`/a4m status` |
+| `command` | `/askmc`、`/a4m sync`、`/a4m status`、`/a4m skill ...` |
 | `qa` | 问答请求构造、限流、答案渲染 |
+| `skill` | Skill 管理请求编排，私有聊天会话只保存当前玩家的 `draft_id` |
 | `transfer` | 文件扫描、checksum、脱敏、manifest、上传编排 |
 | `backend` | `BackendClient` 抽象和 gRPC 实现 |
 | `domain` | 插件侧 DTO 与状态模型 |
@@ -140,7 +144,7 @@ cd Agent4Minecraft
 构建成功后，插件 jar 位于：
 
 ```text
-build/libs/Agent4Minecraft-1.0-SNAPSHOT.jar
+build/libs/Agent4Minecraft-<version>.jar
 ```
 
 `plain` 后缀的 jar 不是最终服务端部署包。请部署不带 `plain` 的 shaded jar。
@@ -148,7 +152,7 @@ build/libs/Agent4Minecraft-1.0-SNAPSHOT.jar
 ### 4. 安装到 Minecraft 服务端
 
 1. 停止 Paper 服务端。
-2. 将 `build/libs/Agent4Minecraft-1.0-SNAPSHOT.jar` 放入服务端 `plugins/` 目录。
+2. 将 `build/libs/Agent4Minecraft-<version>.jar` 放入服务端 `plugins/` 目录。
 3. 启动一次服务端，让插件生成默认配置。
 4. 停止服务端，编辑 `plugins/Agent4Minecraft/config.yml`。
 5. 再次启动服务端。
@@ -211,6 +215,14 @@ plugins/Agent4Minecraft/server-instance-id.txt
 | `/askmc <问题>` | `agent4minecraft.ask` | 所有人 | 向后端发起问答 |
 | `/a4m sync` | `agent4minecraft.admin` | OP | 扫描并同步允许上传的配置文件 |
 | `/a4m status` | `agent4minecraft.admin` | OP | 查询本地和后端同步状态 |
+| `/a4m skill list` | `agent4minecraft.admin` | OP | 查看官方、全局、本服三层 Skill |
+| `/a4m skill view <name>` | `agent4minecraft.admin` | OP | 查看某个 Skill 的摘要和 `SKILL.md` |
+| `/a4m skill create <需求>` | `agent4minecraft.admin` | OP | 进入本服 Skill 多轮创建流程 |
+| `/a4m skill confirm` | `agent4minecraft.admin` | OP | 确认安装当前 Skill 草稿 |
+| `/a4m skill cancel` | `agent4minecraft.admin` | OP | 取消当前 Skill 草稿 |
+| `/a4m skill delete <name>` | `agent4minecraft.admin` | OP | 删除本服 Skill，官方和全局 Skill 只读 |
+
+`/a4m skill create <需求>` 由玩家执行时会进入私有 Skill 创建模式。进入后直接在聊天栏回答后端 LLM 的追问，插件会拦截这些聊天消息并取消广播，其他玩家看不到。草稿就绪后使用 `/a4m skill confirm` 安装并退出私有模式，或使用 `/a4m skill cancel` 放弃草稿。Console 无法进入聊天模式，但仍可继续用 `/a4m skill create <回答>` 的命令式方式补充信息。
 
 示例：
 
@@ -218,6 +230,8 @@ plugins/Agent4Minecraft/server-instance-id.txt
 /askmc eco 插件的金币倍率在哪里配置？
 /a4m sync
 /a4m status
+/a4m skill list
+/a4m skill create 帮服主回答经济插件配置问题
 ```
 
 ## 配置同步范围
@@ -273,6 +287,12 @@ RPC：
 | `UploadFileChunk` | client-streaming | 分块上传单个文件 |
 | `CommitSync` | unary | 提交本次同步并触发后端刷新 |
 | `GetSyncStatus` | unary | 查询后端同步和语义刷新状态 |
+| `ListSkills` | unary | 查询三层 Skill 摘要 |
+| `GetSkill` | unary | 查看 Skill 内容 |
+| `DeleteSkill` | unary | 软删除本服 Skill |
+| `StartSkillCreation` | unary | 启动本服 Skill 创建流程 |
+| `ContinueSkillCreation` | unary | 回答创建流程中的追问 |
+| `ConfirmSkillCreation` | unary | 确认安装草稿 Skill |
 
 协议版本检查发生在插件启动探测阶段。改动协议字段时，请同时更新两个仓库的 proto 文件和相关测试。
 

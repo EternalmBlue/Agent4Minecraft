@@ -133,3 +133,49 @@ data class RemoteSyncStatus(
     val currentRefreshBundle: String?,
     val currentRefreshPhase: String?,
 )
+
+enum class SkillScope {
+    UNKNOWN,
+    OFFICIAL,
+    GLOBAL,
+    SERVER,
+}
+
+data class SkillSummary(
+    val scope: SkillScope,
+    val name: String,
+    val description: String,
+    val valid: Boolean,
+    val readonly: Boolean,
+    val deletable: Boolean,
+    val diagnostics: List<String> = emptyList(),
+)
+
+data class SkillDetail(
+    val summary: SkillSummary,
+    val content: String,
+)
+
+data class SkillDeleteResult(
+    val deleted: Boolean,
+    val message: String,
+    val archivedPath: String?,
+)
+
+enum class SkillCreationStatus {
+    UNKNOWN,
+    NEEDS_CLARIFICATION,
+    DRAFT_READY,
+    INSTALLED,
+}
+
+data class SkillCreationResult(
+    val draftId: String,
+    val status: SkillCreationStatus,
+    val rawStatus: String,
+    val message: String,
+    val questions: List<String>,
+    val skill: SkillSummary?,
+    val content: String,
+    val diagnostics: List<String> = emptyList(),
+)

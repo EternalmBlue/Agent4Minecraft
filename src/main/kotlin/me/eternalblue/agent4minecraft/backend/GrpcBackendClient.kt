@@ -18,6 +18,12 @@ import me.eternalblue.agent4minecraft.domain.RejectedPath
 import me.eternalblue.agent4minecraft.domain.RemoteSyncState
 import me.eternalblue.agent4minecraft.domain.RemoteSyncStatus
 import me.eternalblue.agent4minecraft.domain.ServerPluginInfo
+import me.eternalblue.agent4minecraft.domain.SkillCreationResult
+import me.eternalblue.agent4minecraft.domain.SkillCreationStatus
+import me.eternalblue.agent4minecraft.domain.SkillDeleteResult
+import me.eternalblue.agent4minecraft.domain.SkillDetail
+import me.eternalblue.agent4minecraft.domain.SkillScope
+import me.eternalblue.agent4minecraft.domain.SkillSummary
 import me.eternalblue.agent4minecraft.domain.SyncCommitResult
 import me.eternalblue.agent4minecraft.domain.SyncPrepareResult
 import me.eternalblue.agent4minecraft.domain.UploadFile
@@ -28,11 +34,20 @@ import me.eternalblue.agent4minecraft.proto.AskEvent
 import me.eternalblue.agent4minecraft.proto.AskProgress as ProtoAskProgress
 import me.eternalblue.agent4minecraft.proto.AskRequest
 import me.eternalblue.agent4minecraft.proto.AskResponse
+import me.eternalblue.agent4minecraft.proto.ConfirmSkillCreationRequest
+import me.eternalblue.agent4minecraft.proto.ContinueSkillCreationRequest
+import me.eternalblue.agent4minecraft.proto.DeleteSkillRequest
 import me.eternalblue.agent4minecraft.proto.FileChunkUploadRequest
 import me.eternalblue.agent4minecraft.proto.FileManifestEntry
+import me.eternalblue.agent4minecraft.proto.GetSkillRequest
+import me.eternalblue.agent4minecraft.proto.ListSkillsRequest
 import me.eternalblue.agent4minecraft.proto.ProbeRequest
 import me.eternalblue.agent4minecraft.proto.RejectedPath as ProtoRejectedPath
 import me.eternalblue.agent4minecraft.proto.ServerPlugin
+import me.eternalblue.agent4minecraft.proto.SkillCreationResponse
+import me.eternalblue.agent4minecraft.proto.SkillScope as ProtoSkillScope
+import me.eternalblue.agent4minecraft.proto.SkillSummary as ProtoSkillSummary
+import me.eternalblue.agent4minecraft.proto.StartSkillCreationRequest
 import me.eternalblue.agent4minecraft.proto.SyncCommitRequest
 import me.eternalblue.agent4minecraft.proto.SyncPrepareRequest
 import me.eternalblue.agent4minecraft.proto.SyncState
@@ -282,6 +297,139 @@ class GrpcBackendClient private constructor(
         }
     }
 
+    override fun listSkills(
+        serverId: String,
+        serverInstanceId: String,
+    ): List<SkillSummary> {
+        return try {
+            val response = blockingStub
+                .withDeadlineAfter(settings.deadlineMillis, TimeUnit.MILLISECONDS)
+                .listSkills(
+                    ListSkillsRequest.newBuilder()
+                        .setServerId(serverId)
+                        .setServerInstanceId(serverInstanceId)
+                        .build(),
+                )
+            response.skillsList.map { skill -> skill.toDomain() }
+        } catch (throwable: Throwable) {
+            throw GrpcErrorMapper.map(throwable, messages.backendActionSkillList(), messages)
+        }
+    }
+
+    override fun getSkill(
+        serverId: String,
+        serverInstanceId: String,
+        skillName: String,
+    ): SkillDetail {
+        return try {
+            val response = blockingStub
+                .withDeadlineAfter(settings.deadlineMillis, TimeUnit.MILLISECONDS)
+                .getSkill(
+                    GetSkillRequest.newBuilder()
+                        .setServerId(serverId)
+                        .setServerInstanceId(serverInstanceId)
+                        .setSkillName(skillName)
+                        .build(),
+                )
+            SkillDetail(
+                summary = response.skill.toDomain(),
+                content = response.content,
+            )
+        } catch (throwable: Throwable) {
+            throw GrpcErrorMapper.map(throwable, messages.backendActionSkillView(skillName), messages)
+        }
+    }
+
+    override fun deleteSkill(
+        serverId: String,
+        serverInstanceId: String,
+        skillName: String,
+    ): SkillDeleteResult {
+        return try {
+            val response = blockingStub
+                .withDeadlineAfter(settings.deadlineMillis, TimeUnit.MILLISECONDS)
+                .deleteSkill(
+                    DeleteSkillRequest.newBuilder()
+                        .setServerId(serverId)
+                        .setServerInstanceId(serverInstanceId)
+                        .setSkillName(skillName)
+                        .build(),
+                )
+            SkillDeleteResult(
+                deleted = response.deleted,
+                message = response.message,
+                archivedPath = response.archivedPath.takeUnless(String::isBlank),
+            )
+        } catch (throwable: Throwable) {
+            throw GrpcErrorMapper.map(throwable, messages.backendActionSkillDelete(skillName), messages)
+        }
+    }
+
+    override fun startSkillCreation(
+        serverId: String,
+        serverInstanceId: String,
+        initialRequirement: String,
+    ): SkillCreationResult {
+        return try {
+            val response = blockingStub
+                .withDeadlineAfter(settings.askDeadlineMillis, TimeUnit.MILLISECONDS)
+                .startSkillCreation(
+                    StartSkillCreationRequest.newBuilder()
+                        .setServerId(serverId)
+                        .setServerInstanceId(serverInstanceId)
+                        .setInitialRequirement(initialRequirement)
+                        .build(),
+                )
+            response.toDomain()
+        } catch (throwable: Throwable) {
+            throw GrpcErrorMapper.map(throwable, messages.backendActionSkillCreate(), messages)
+        }
+    }
+
+    override fun continueSkillCreation(
+        serverId: String,
+        serverInstanceId: String,
+        draftId: String,
+        userMessage: String,
+    ): SkillCreationResult {
+        return try {
+            val response = blockingStub
+                .withDeadlineAfter(settings.askDeadlineMillis, TimeUnit.MILLISECONDS)
+                .continueSkillCreation(
+                    ContinueSkillCreationRequest.newBuilder()
+                        .setServerId(serverId)
+                        .setServerInstanceId(serverInstanceId)
+                        .setDraftId(draftId)
+                        .setUserMessage(userMessage)
+                        .build(),
+                )
+            response.toDomain()
+        } catch (throwable: Throwable) {
+            throw GrpcErrorMapper.map(throwable, messages.backendActionSkillCreate(), messages)
+        }
+    }
+
+    override fun confirmSkillCreation(
+        serverId: String,
+        serverInstanceId: String,
+        draftId: String,
+    ): SkillCreationResult {
+        return try {
+            val response = blockingStub
+                .withDeadlineAfter(settings.askDeadlineMillis, TimeUnit.MILLISECONDS)
+                .confirmSkillCreation(
+                    ConfirmSkillCreationRequest.newBuilder()
+                        .setServerId(serverId)
+                        .setServerInstanceId(serverInstanceId)
+                        .setDraftId(draftId)
+                        .build(),
+                )
+            response.toDomain()
+        } catch (throwable: Throwable) {
+            throw GrpcErrorMapper.map(throwable, messages.backendActionSkillCreate(), messages)
+        }
+    }
+
     override fun close() {
         channel.shutdownNow()
         if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -424,6 +572,51 @@ class GrpcBackendClient private constructor(
             SyncState.UNRECOGNIZED,
             SyncState.SYNC_STATE_UNSPECIFIED,
             -> RemoteSyncState.UNKNOWN
+        }
+    }
+
+    private fun ProtoSkillSummary.toDomain(): SkillSummary {
+        return SkillSummary(
+            scope = scope.toDomain(),
+            name = name,
+            description = description,
+            valid = valid,
+            readonly = readonly,
+            deletable = deletable,
+            diagnostics = diagnosticsList.toList(),
+        )
+    }
+
+    private fun ProtoSkillScope.toDomain(): SkillScope {
+        return when (this) {
+            ProtoSkillScope.SKILL_SCOPE_OFFICIAL -> SkillScope.OFFICIAL
+            ProtoSkillScope.SKILL_SCOPE_GLOBAL -> SkillScope.GLOBAL
+            ProtoSkillScope.SKILL_SCOPE_SERVER -> SkillScope.SERVER
+            ProtoSkillScope.UNRECOGNIZED,
+            ProtoSkillScope.SKILL_SCOPE_UNSPECIFIED,
+            -> SkillScope.UNKNOWN
+        }
+    }
+
+    private fun SkillCreationResponse.toDomain(): SkillCreationResult {
+        return SkillCreationResult(
+            draftId = draftId,
+            status = status.toSkillCreationStatus(),
+            rawStatus = status,
+            message = message,
+            questions = questionsList.toList(),
+            skill = if (hasSkill()) skill.toDomain() else null,
+            content = content,
+            diagnostics = diagnosticsList.toList(),
+        )
+    }
+
+    private fun String.toSkillCreationStatus(): SkillCreationStatus {
+        return when (trim().lowercase()) {
+            "needs_clarification" -> SkillCreationStatus.NEEDS_CLARIFICATION
+            "draft_ready" -> SkillCreationStatus.DRAFT_READY
+            "installed" -> SkillCreationStatus.INSTALLED
+            else -> SkillCreationStatus.UNKNOWN
         }
     }
 

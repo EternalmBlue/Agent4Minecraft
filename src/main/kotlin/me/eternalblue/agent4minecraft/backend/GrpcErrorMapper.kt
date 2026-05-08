@@ -47,7 +47,10 @@ object GrpcErrorMapper {
                     rootCause,
                 )
 
-            Status.Code.INVALID_ARGUMENT, Status.Code.FAILED_PRECONDITION ->
+            Status.Code.INVALID_ARGUMENT,
+            Status.Code.NOT_FOUND,
+            Status.Code.ALREADY_EXISTS,
+            Status.Code.FAILED_PRECONDITION ->
                 BackendRequestException(
                     messages.backendRequestRejected(
                         action = actionLabel,

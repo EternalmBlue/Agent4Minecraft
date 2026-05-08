@@ -11,7 +11,7 @@ commands:
     permission: agent4minecraft.ask
   a4m:
     description: Agent4Minecraft admin commands.
-    usage: "/a4m <sync|status>"
+    usage: "/a4m <sync|status|skill>"
     permission: agent4minecraft.admin
 permissions:
   agent4minecraft.ask:

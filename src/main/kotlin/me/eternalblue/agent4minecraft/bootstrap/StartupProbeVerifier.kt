@@ -21,6 +21,7 @@ object StartupProbeVerifier {
     const val BRIDGE_PROTOCOL_VERSION: Int = 1
 
     private const val BACKEND_ENTRYPOINT = "python -m agent_for_mc.interfaces.grpc"
+    private const val REQUIRED_SKILLS_CAPABILITY = "skills_v1"
 
     fun verify(
         backendClient: BackendClient,
@@ -66,6 +67,20 @@ object StartupProbeVerifier {
                             pluginName = pluginName,
                             pluginVersion = pluginVersion,
                             detail = messages.startupProtocolMismatch(),
+                            probe = probe,
+                            messages = messages,
+                        ),
+                    )
+
+                REQUIRED_SKILLS_CAPABILITY !in probe.capabilities ->
+                    StartupProbeOutcome.Failure(
+                        buildFailureLines(
+                            backendSettings = backendSettings,
+                            serverId = serverId,
+                            serverInstanceId = serverInstanceId,
+                            pluginName = pluginName,
+                            pluginVersion = pluginVersion,
+                            detail = messages.startupSkillsUnsupported(REQUIRED_SKILLS_CAPABILITY),
                             probe = probe,
                             messages = messages,
                         ),

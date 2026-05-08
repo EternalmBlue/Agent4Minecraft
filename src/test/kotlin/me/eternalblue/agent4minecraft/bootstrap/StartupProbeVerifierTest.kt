@@ -27,6 +27,7 @@ class StartupProbeVerifierTest {
                     .setBackendName("AgentForMc")
                     .setBackendVersion("dev")
                     .setProtocolVersion(request.protocolVersion)
+                    .addCapabilities("skills_v1")
                     .build(),
             )
             responseObserver.onCompleted()
@@ -35,6 +36,7 @@ class StartupProbeVerifierTest {
         val success = assertIs<StartupProbeOutcome.Success>(outcome)
         assertEquals("AgentForMc", success.result.backendName)
         assertEquals(StartupProbeVerifier.BRIDGE_PROTOCOL_VERSION, success.result.protocolVersion)
+        assertContains(success.result.capabilities, "skills_v1")
     }
 
     @Test
@@ -55,6 +57,26 @@ class StartupProbeVerifierTest {
         val failure = assertIs<StartupProbeOutcome.Failure>(outcome)
         assertContains(failure.lines.joinToString("\n"), "Bridge protocol version mismatch.")
         assertContains(failure.lines.joinToString("\n"), "protocolVersion=99")
+    }
+
+    @Test
+    fun `verify fails when backend does not advertise skills capability`() {
+        val outcome = withProbeClient { request, responseObserver ->
+            responseObserver.onNext(
+                ProbeResponse.newBuilder()
+                    .setAck(true)
+                    .setMessage("ready")
+                    .setBackendName("AgentForMc")
+                    .setBackendVersion("1.1.0")
+                    .setProtocolVersion(request.protocolVersion)
+                    .build(),
+            )
+            responseObserver.onCompleted()
+        }
+
+        val failure = assertIs<StartupProbeOutcome.Failure>(outcome)
+        assertContains(failure.lines.joinToString("\n"), "skills_v1")
+        assertContains(failure.lines.joinToString("\n"), "Upgrade AgentForMc")
     }
 
     @Test

@@ -6,11 +6,16 @@ import me.eternalblue.agent4minecraft.bootstrap.ServerInstanceIdStore
 import me.eternalblue.agent4minecraft.bootstrap.StartupProbeOutcome
 import me.eternalblue.agent4minecraft.bootstrap.StartupProbeVerifier
 import me.eternalblue.agent4minecraft.command.A4mCommand
+import me.eternalblue.agent4minecraft.command.AsyncCommandRunner
 import me.eternalblue.agent4minecraft.command.AskCommand
+import me.eternalblue.agent4minecraft.command.SkillCommandHandler
 import me.eternalblue.agent4minecraft.config.PluginSettingsLoader
 import me.eternalblue.agent4minecraft.i18n.PluginMessageLoader
 import me.eternalblue.agent4minecraft.qa.QuestionRequestLimiter
 import me.eternalblue.agent4minecraft.qa.QuestionService
+import me.eternalblue.agent4minecraft.skill.SkillCreationChatListener
+import me.eternalblue.agent4minecraft.skill.SkillCreationSessionStore
+import me.eternalblue.agent4minecraft.skill.SkillService
 import me.eternalblue.agent4minecraft.transfer.ChecksumCache
 import me.eternalblue.agent4minecraft.transfer.SensitiveConfigRedactor
 import me.eternalblue.agent4minecraft.transfer.SyncService
@@ -64,7 +69,8 @@ class Agent4MinecraftPlugin : JavaPlugin() {
 
         val executor = PluginExecutorFactory.create("agent4minecraft-worker")
         val backendClient = GrpcBackendClient(settings.backend, messages)
-        val runtimeHandle = PluginRuntime(executor, backendClient)
+        val skillCreationSessionStore = SkillCreationSessionStore()
+        val runtimeHandle = PluginRuntime(executor, backendClient, skillCreationSessionStore)
         val pluginName = pluginMeta.name
         val pluginVersion = pluginMeta.version
 
@@ -119,6 +125,19 @@ class Agent4MinecraftPlugin : JavaPlugin() {
             messages = messages,
             logger = logger,
         )
+        val skillService = SkillService(
+            backendClient = backendClient,
+            serverId = settings.serverId,
+            serverInstanceId = serverInstanceId,
+            messages = messages,
+        )
+        val asyncCommandRunner = AsyncCommandRunner(this, executor)
+        val skillCommandHandler = SkillCommandHandler(
+            skillService = skillService,
+            messages = messages,
+            asyncRunner = asyncCommandRunner,
+            sessionStore = skillCreationSessionStore,
+        )
 
         registerCommand(
             commandName = "askmc",
@@ -133,12 +152,20 @@ class Agent4MinecraftPlugin : JavaPlugin() {
         )
 
         val adminCommand = A4mCommand(
-            plugin = this,
-            executor = executor,
+            asyncRunner = asyncCommandRunner,
             syncService = syncService,
+            skillCommandHandler = skillCommandHandler,
             messages = messages,
         )
         registerCommand("a4m", adminCommand, adminCommand)
+        server.pluginManager.registerEvents(
+            SkillCreationChatListener(
+                plugin = this,
+                sessionStore = skillCreationSessionStore,
+                skillCommandHandler = skillCommandHandler,
+            ),
+            this,
+        )
 
         runtime = runtimeHandle
         logger.info(
@@ -178,8 +205,10 @@ class Agent4MinecraftPlugin : JavaPlugin() {
     private data class PluginRuntime(
         private val executor: ExecutorService,
         private val backendClient: GrpcBackendClient,
+        private val skillCreationSessionStore: SkillCreationSessionStore,
     ) {
         fun close() {
+            skillCreationSessionStore.clear()
             backendClient.close()
             executor.shutdown()
             try {

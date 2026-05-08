@@ -4,6 +4,8 @@ import me.eternalblue.agent4minecraft.config.BackendSettings
 import me.eternalblue.agent4minecraft.domain.AskProgress
 import me.eternalblue.agent4minecraft.domain.ProbeResult
 import me.eternalblue.agent4minecraft.domain.RemoteSyncState
+import me.eternalblue.agent4minecraft.domain.SkillScope
+import me.eternalblue.agent4minecraft.domain.SkillSummary
 import me.eternalblue.agent4minecraft.transfer.LocalSyncPhase
 
 class PluginMessages(
@@ -14,6 +16,8 @@ class PluginMessages(
     fun askUsage(label: String): String = msg("ask.usage", "label" to label)
     fun adminUsage(label: String): String = msg("admin.usage", "label" to label)
     fun unknownSubcommand(label: String): String = msg("admin.unknown_subcommand", "label" to label)
+    fun skillUsage(label: String): String = msg("skill.usage", "label" to label)
+    fun skillCreateUsage(label: String): String = msg("skill.create_usage", "label" to label)
     fun askQueued(): String = msg("ask.queued")
     fun askProgress(progress: AskProgress, elapsedSeconds: Long): String {
         val stage = msgOrDefault(
@@ -168,12 +172,102 @@ class PluginMessages(
     fun lastCompleted(timestamp: String): String = msg("status.last_completed", "timestamp" to timestamp)
     fun lastFailure(message: String): String = msg("status.last_failure", "message" to message)
 
+    fun skillListQueued(): String = msg("skill.list_queued")
+    fun skillListHeader(count: Int): String = msg("skill.list_header", "count" to count)
+    fun skillListEmpty(): String = msg("skill.list_empty")
+    fun skillListItem(skill: SkillSummary): String {
+        return msg(
+            "skill.list_item",
+            "scope" to skillScope(skill.scope),
+            "name" to skill.name,
+            "description" to skill.description.ifBlank { emptyValue() },
+            "valid" to skill.valid,
+            "readonly" to skill.readonly,
+            "deletable" to skill.deletable,
+            "diagnostics" to skill.diagnostics.joinToString("; ").ifBlank { emptyValue() },
+        )
+    }
+
+    fun skillViewQueued(skillName: String): String = msg("skill.view_queued", "name" to skillName)
+    fun skillViewHeader(skill: SkillSummary): String {
+        return msg(
+            "skill.view_header",
+            "scope" to skillScope(skill.scope),
+            "name" to skill.name,
+            "valid" to skill.valid,
+        )
+    }
+
+    fun skillViewDescription(description: String): String {
+        return msg("skill.view_description", "description" to description.ifBlank { emptyValue() })
+    }
+
+    fun skillViewDiagnostics(diagnostics: String): String {
+        return msg("skill.view_diagnostics", "diagnostics" to diagnostics.ifBlank { emptyValue() })
+    }
+
+    fun skillViewContentHeader(): String = msg("skill.view_content_header")
+    fun skillDeleteQueued(skillName: String): String = msg("skill.delete_queued", "name" to skillName)
+    fun skillDeleteResult(skillName: String, message: String, archivedPath: String?): String {
+        return msg(
+            "skill.delete_result",
+            "name" to skillName,
+            "message" to message.ifBlank { emptyValue() },
+            "archived_path" to (archivedPath ?: emptyValue()),
+        )
+    }
+
+    fun skillCreateQueued(): String = msg("skill.create_queued")
+    fun skillCreateRequirementBlank(): String = msg("skill.create_requirement_blank")
+    fun skillCreateResponseBlank(): String = msg("skill.create_response_blank")
+    fun skillNameBlank(): String = msg("skill.name_blank")
+    fun skillNoActiveDraft(): String = msg("skill.no_active_draft")
+    fun skillDraftCancelled(): String = msg("skill.draft_cancelled")
+    fun skillDraftAlreadyActive(label: String): String = msg("skill.draft_already_active", "label" to label)
+    fun skillDraftCancelHint(label: String): String = msg("skill.draft_cancel_hint", "label" to label)
+    fun skillChatModeEntered(): String = msg("skill.chat_mode_entered")
+    fun skillChatModeExited(): String = msg("skill.chat_mode_exited")
+    fun skillChatPrivateNotice(): String = msg("skill.chat_private_notice")
+    fun skillChatContinueHint(label: String = "a4m"): String = msg("skill.chat_continue_hint", "label" to label)
+    fun skillChatEmptyResponse(): String = msg("skill.chat_empty_response")
+    fun skillChatStartPending(): String = msg("skill.chat_start_pending")
+    fun skillChatRequestInFlight(): String = msg("skill.chat_request_in_flight")
+    fun skillConfirmNotReady(): String = msg("skill.confirm_not_ready")
+    fun skillSessionExpired(): String = msg("skill.session_expired")
+    fun skillStatusHeader(): String = msg("skill.status_header")
+    fun skillStatusNoActive(): String = msg("skill.status_no_active")
+    fun skillStatusLine(status: String, inFlight: Boolean, draftId: String): String {
+        return msg(
+            "skill.status_line",
+            "status" to status,
+            "in_flight" to inFlight,
+            "draft_id" to draftId.ifBlank { emptyValue() },
+        )
+    }
+
+    fun skillCreationMessage(message: String): String = msg("skill.creation_message", "message" to message)
+    fun skillCreationQuestionsHeader(): String = msg("skill.creation_questions_header")
+    fun skillCreationQuestion(index: Int, question: String): String {
+        return msg("skill.creation_question", "index" to index, "question" to question)
+    }
+
+    fun skillCreationDraftReady(skillName: String): String = msg("skill.creation_draft_ready", "name" to skillName)
+    fun skillCreationInstalled(skillName: String): String = msg("skill.creation_installed", "name" to skillName)
+    fun skillCreationContinueHint(label: String): String = msg("skill.creation_continue_hint", "label" to label)
+    fun skillCreationConfirmHint(label: String): String = msg("skill.creation_confirm_hint", "label" to label)
+    fun skillCreationDiagnosticsHeader(): String = msg("skill.creation_diagnostics_header")
+    fun skillOperationFailedFallback(): String = msg("skill.failed_fallback")
+
     fun backendActionProbe(): String = msg("backend.action.probe")
     fun backendActionAsk(): String = msg("backend.action.ask")
     fun backendActionSyncPrepare(): String = msg("backend.action.sync_prepare")
     fun backendActionUpload(relativePath: String): String = msg("backend.action.upload", "path" to relativePath)
     fun backendActionSyncCommit(): String = msg("backend.action.sync_commit")
     fun backendActionSyncStatus(): String = msg("backend.action.sync_status")
+    fun backendActionSkillList(): String = msg("backend.action.skill_list")
+    fun backendActionSkillView(skillName: String): String = msg("backend.action.skill_view", "name" to skillName)
+    fun backendActionSkillDelete(skillName: String): String = msg("backend.action.skill_delete", "name" to skillName)
+    fun backendActionSkillCreate(): String = msg("backend.action.skill_create")
 
     fun backendTransportFailure(action: String, detail: String): String {
         return msg("backend.error.transport_failure", "action" to action, "detail" to detail)
@@ -196,6 +290,10 @@ class PluginMessages(
 
     fun startupProbeAckFalse(): String = msg("startup.probe_ack_false")
     fun startupProtocolMismatch(): String = msg("startup.protocol_mismatch")
+    fun startupSkillsUnsupported(capability: String): String {
+        return msg("startup.skills_unsupported", "capability" to capability)
+    }
+
     fun startupProbeFailedDefault(): String = msg("startup.probe_failed_default")
 
     fun startupFailureLines(
@@ -249,6 +347,10 @@ class PluginMessages(
 
     fun remoteSyncState(state: RemoteSyncState): String {
         return msg("status.remote_state_value.${state.name.lowercase()}")
+    }
+
+    fun skillScope(scope: SkillScope): String {
+        return msg("skill.scope.${scope.name.lowercase()}")
     }
 
     private fun msg(

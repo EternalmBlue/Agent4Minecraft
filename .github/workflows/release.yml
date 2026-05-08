@@ -30,7 +30,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
-          ./gradlew -Pversion="$VERSION" shadowJar
+          ./gradlew clean test build -Pversion="$VERSION"
 
       - name: Upload JAR to GitHub Release
         uses: softprops/action-gh-release@v2
