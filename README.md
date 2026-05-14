@@ -114,9 +114,11 @@ Copy-Item .env.example .env
 
 ```dotenv
 RAG_ZHIPU_API_KEY=你的智谱APIKey
-RAG_DEEPSEEK_API_KEY=你的DeepSeekAPIKey
+RAG_LLM_API_KEY=你的LLM APIKey
 RAG_GRPC_AUTH_TOKEN=change_me_to_a_strong_token
 ```
+
+旧部署里的 `RAG_DEEPSEEK_API_KEY` 仍兼容，新部署建议使用 `RAG_LLM_API_KEY`。
 
 启动后端 gRPC 服务：
 
